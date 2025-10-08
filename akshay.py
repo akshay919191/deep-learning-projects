@@ -1,0 +1,136 @@
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+import numpy as np # pandas is not needed here
+
+
+img_size = 72
+patch_size = 6
+
+NUM_PATCHES = (img_size // patch_size) ** 2 
+embedd_dim = 48
+num_head = 4
+transformer_layer = 4
+mlp_units = [2 * embedd_dim , embedd_dim] 
+num_class = 10
+
+
+class Patches(layers.Layer):
+    def __init__(self , patch_size):
+        super().__init__() 
+        self.patch_size = patch_size
+    
+    
+    def call(self , images): 
+        batch_size = tf.shape(images)[0]
+
+        patches = tf.image.extract_patches(
+            images=images ,
+            sizes = (1 , self.patch_size , self.patch_size , 1) ,
+            strides = (1 , self.patch_size , self.patch_size , 1) , 
+            rates = (1 , 1 , 1 , 1),
+            padding = 'VALID'
+        ) 
+        
+        patch_dim = patches.shape[-1]
+        patches = tf.reshape(patches , [batch_size , -1 , patch_dim])
+
+        return patches
+    
+
+class PatchEncoder(layers.Layer):
+    def __init__(self , num_patch , project_dim):
+        super().__init__()
+        self.num_patch = num_patch
+        self.projection = layers.Dense(project_dim)
+        
+ 
+        self.position_embedd = layers.Embedding(input_dim = num_patch + 1 , 
+                                                 output_dim = project_dim)
+        
+        self.cls_token = tf.Variable(
+            initial_value=tf.random.normal(shape=(1 , 1 , project_dim)) , 
+            trainable=True
+        )
+        
+    def call(self , patch):
+        positions = tf.range(start = 0 , limit = self.num_patch + 1, delta=1)
+        encoded_patch = self.projection(patch)
+        
+    
+        batch_size = tf.shape(encoded_patch)[0]
+        cls_tiled = tf.tile(self.cls_token , [batch_size , 1 , 1])
+        sequence = tf.concat([cls_tiled , encoded_patch] , axis=1)
+        
+        
+        encoded = sequence + self.position_embedd(positions)
+
+        return encoded
+    
+
+def transformer_encoded_block(input_seq , num_head , key_dim , ffn_units):
+    norm1 = layers.LayerNormalization(epsilon=1e-6)(input_seq)
+
+
+    attn_output = layers.MultiHeadAttention(
+        num_heads = num_head ,
+        key_dim = key_dim,
+        dropout = 0.1
+    )(query = norm1 , value = norm1 , key = norm1)
+    
+    x = layers.Add()([input_seq , attn_output])
+
+    norm2 = layers.LayerNormalization(epsilon = 1e-6)(x)
+
+    ffn = tf.keras.Sequential([
+        layers.Dense(ffn_units[0] , activation = 'gelu'),
+        layers.Dropout(0.1),
+ 
+        layers.Dense(ffn_units[1])
+    ])
+    
+    ffn_output = ffn(norm2) 
+
+    output = layers.Add()([x , ffn_output])
+
+    return output
+
+
+def create_vit_classifier():
+    inputs = keras.Input(shape=(img_size, img_size, 3))
+    
+ 
+    patches = Patches(patch_size)(inputs)
+
+    encoded_patches = PatchEncoder(NUM_PATCHES, embedd_dim)(patches) 
+
+    x = encoded_patches
+   
+    for _ in range(transformer_layer):
+        x = transformer_encoded_block(
+            x, num_head, embedd_dim, mlp_units
+        )
+    representation = layers.LayerNormalization(epsilon=1e-6)(x) 
+ 
+    cls_token_output = representation[:, 0, :] 
+    
+    # Final MLP Head
+    features = layers.Dense(256, activation="gelu")(cls_token_output)
+    features = layers.Dropout(0.5)(features)
+    
+    logits = layers.Dense(num_class, activation="softmax")(features)
+    
+    model = keras.Model(inputs=inputs, outputs=logits)
+    model.compile(
+     
+        optimizer=keras.optimizers.Adam(learning_rate=1e-3), 
+        loss=keras.losses.SparseCategoricalCrossentropy(),
+        metrics=[keras.metrics.SparseCategoricalAccuracy(name="accuracy")],
+    )
+    return model
+
+
+vit_model = create_vit_classifier()
+print(f"Total tokens per image: {NUM_PATCHES + 1}")
+print("\n--- Corrected ViT Model Summary ---")
+vit_model.summary()

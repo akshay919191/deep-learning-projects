@@ -1,0 +1,67 @@
+import pandas as pd
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense , Flatten , Conv2D, MaxPooling2D , Dropout , RandomFlip , RandomRotation
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping
+
+(X_train , y_train) , (X_test , y_test) = tf.keras.datasets.cifar10.load_data()
+
+
+
+op = Adam(learning_rate = 0.001)
+
+X_train = X_train.reshape(-1 , 32 , 32 , 3)
+
+X_test = X_test.reshape(-1 , 32 , 32 , 3)
+
+X_train = X_train.astype('float32') / 255.0
+X_test = X_test.astype('float32')/255.0
+
+early_stopping = EarlyStopping(patience = 3 , monitor = "val_loss" , restore_best_weights = True)
+
+
+
+model = Sequential([
+    RandomFlip("horizontal" ,input_shape = (32 , 32 , 3)) , 
+
+
+    Conv2D(64, (3, 3), activation='relu', input_shape=(32 , 32, 3)),
+    MaxPooling2D(2, 2),
+    
+    
+    Conv2D(64, (3, 3), activation='relu'),
+    MaxPooling2D(2, 2),
+    
+    
+    Flatten(),
+    
+    
+    Dense(200, activation='relu'),
+    Dropout(0.4),
+    Dense(60, activation='relu'),
+    Dropout(0.2),
+    Dense(10, activation='softmax')
+])
+
+model.compile(
+    optimizer=op,
+    loss='sparse_categorical_crossentropy',  
+    metrics=['accuracy']  
+)
+model.fit(X_train, y_train, epochs=15, batch_size=32, validation_split=0.2 , callbacks = [early_stopping])
+
+
+loss , accuracy = model.evaluate(X_test , y_test , verbose = 0)
+
+print(f"loss : {loss:.4f}")
+print(f"accuracy : {accuracy:.4f}")
+
+
+pred = model.predict(X_test)
+
+predictions = np.argmax(pred , axis=1)
+
+# model.save("first_cnn_model.keras")
+# print("saved success")
