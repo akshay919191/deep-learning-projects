@@ -1,28 +1,27 @@
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-import numpy as np # pandas is not needed here
 
 
-img_size = 72
+img_size = 72 
 patch_size = 6
 
 NUM_PATCHES = (img_size // patch_size) ** 2 
 embedd_dim = 48
 num_head = 4
-transformer_layer = 4
-mlp_units = [2 * embedd_dim , embedd_dim] 
+transformer_layer = 4  #vit model layers
+mlp_units = [2 * embedd_dim , embedd_dim]  #can be used as dense parameter
 num_class = 10
 
 
 class Patches(layers.Layer):
     def __init__(self , patch_size):
         super().__init__() 
-        self.patch_size = patch_size
+        self.patch_size = patch_size #initialize patch size and we didn't use variable as we just want to use it for this class only
     
     
     def call(self , images): 
-        batch_size = tf.shape(images)[0]
+        batch_size = tf.shape(images)[0] #initializing batch size so it can choose how much unit to chose in a epoch
 
         patches = tf.image.extract_patches(
             images=images ,
@@ -30,7 +29,7 @@ class Patches(layers.Layer):
             strides = (1 , self.patch_size , self.patch_size , 1) , 
             rates = (1 , 1 , 1 , 1),
             padding = 'VALID'
-        ) 
+        ) # extracting patch from img
         
         patch_dim = patches.shape[-1]
         patches = tf.reshape(patches , [batch_size , -1 , patch_dim])
@@ -39,10 +38,10 @@ class Patches(layers.Layer):
     
 
 class PatchEncoder(layers.Layer):
-    def __init__(self , num_patch , project_dim):
+    def __init__(self , num_patch , project_dim):# same reason using init
         super().__init__()
         self.num_patch = num_patch
-        self.projection = layers.Dense(project_dim)
+        self.projection = layers.Dense(project_dim)# for dimensionality reduction and feature transformation
         
  
         self.position_embedd = layers.Embedding(input_dim = num_patch + 1 , 
@@ -51,43 +50,45 @@ class PatchEncoder(layers.Layer):
         self.cls_token = tf.Variable(
             initial_value=tf.random.normal(shape=(1 , 1 , project_dim)) , 
             trainable=True
-        )
+        ) # tokenization so that data can have a space to store info
         
     def call(self , patch):
-        positions = tf.range(start = 0 , limit = self.num_patch + 1, delta=1)
+        positions = tf.range(start = 0 , limit = self.num_patch + 1, delta=1)# positioning each so that model know where the data point came from 
         encoded_patch = self.projection(patch)
         
     
         batch_size = tf.shape(encoded_patch)[0]
-        cls_tiled = tf.tile(self.cls_token , [batch_size , 1 , 1])
+        cls_tiled = tf.tile(self.cls_token , [batch_size , 1 , 1]) # vector that represents the entire sequence
+        # project_dim=128, then cls_token is a (1, 1, 128)
+
         sequence = tf.concat([cls_tiled , encoded_patch] , axis=1)
         
         
-        encoded = sequence + self.position_embedd(positions)
+        encoded = sequence + self.position_embedd(positions) #ctual image content after patch extraction and projection
 
         return encoded
     
 
 def transformer_encoded_block(input_seq , num_head , key_dim , ffn_units):
-    norm1 = layers.LayerNormalization(epsilon=1e-6)(input_seq)
-
+    norm1 = layers.LayerNormalization(epsilon=1e-6)(input_seq) # normalizing the input seq to be in range(0 , 1) wihtout seeing batch size and sequence
+        # so gradient be optimized 
 
     attn_output = layers.MultiHeadAttention(
         num_heads = num_head ,
         key_dim = key_dim,
         dropout = 0.1
-    )(query = norm1 , value = norm1 , key = norm1)
+    )(query = norm1 , value = norm1 , key = norm1) # splitting the data into smaller parts usin MHA 
     
     x = layers.Add()([input_seq , attn_output])
 
-    norm2 = layers.LayerNormalization(epsilon = 1e-6)(x)
+    norm2 = layers.LayerNormalization(epsilon = 1e-6)(x) # normalizing again for feed forward to model
 
     ffn = tf.keras.Sequential([
         layers.Dense(ffn_units[0] , activation = 'gelu'),
         layers.Dropout(0.1),
  
         layers.Dense(ffn_units[1])
-    ])
+    ])  # stacking all the layers using sequential
     
     ffn_output = ffn(norm2) 
 
@@ -100,9 +101,9 @@ def create_vit_classifier():
     inputs = keras.Input(shape=(img_size, img_size, 3))
     
  
-    patches = Patches(patch_size)(inputs)
+    patches = Patches(patch_size)(inputs)## finding patch
 
-    encoded_patches = PatchEncoder(NUM_PATCHES, embedd_dim)(patches) 
+    encoded_patches = PatchEncoder(NUM_PATCHES, embedd_dim)(patches) # reducing dimension
 
     x = encoded_patches
    
@@ -134,3 +135,4 @@ vit_model = create_vit_classifier()
 print(f"Total tokens per image: {NUM_PATCHES + 1}")
 print("\n--- Corrected ViT Model Summary ---")
 vit_model.summary()
+
