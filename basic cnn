@@ -26,7 +26,7 @@ early_stopping = EarlyStopping(patience = 3 , monitor = "val_loss" , restore_bes
 # first learn from data , reduce size , then flat , then predict
 model = Sequential([
     RandomFlip("horizontal" ,input_shape = (32 , 32 , 3)) , 
-
+# flipped so model can learn mirroring
 
     Conv2D(64, (3, 3), activation='relu', input_shape=(32 , 32, 3)),
     MaxPooling2D(2, 2),
@@ -66,4 +66,5 @@ predictions = np.argmax(pred , axis=1)
 
 # model.save("first_cnn_model.keras")
 # print("saved success")
+
 
