@@ -12,17 +12,18 @@ from tensorflow.keras.callbacks import EarlyStopping
 
 op = Adam(learning_rate = 0.001)
 
-X_train = X_train.reshape(-1 , 32 , 32 , 3)
+X_train = X_train.reshape(-1 , 32 , 32 , 3)  #convolutional need a formatted data for every dimension
 
 X_test = X_test.reshape(-1 , 32 , 32 , 3)
 
-X_train = X_train.astype('float32') / 255.0
+X_train = X_train.astype('float32') / 255.0 # normalization so its can be in range[0 , 1]
 X_test = X_test.astype('float32')/255.0
 
-early_stopping = EarlyStopping(patience = 3 , monitor = "val_loss" , restore_best_weights = True)
+early_stopping = EarlyStopping(patience = 3 , monitor = "val_loss" , restore_best_weights = True) # if a model's validation loss is constant till number of epoch of pateince if will stop
 
 
 
+# first learn from data , reduce size , then flat , then predict
 model = Sequential([
     RandomFlip("horizontal" ,input_shape = (32 , 32 , 3)) , 
 
@@ -49,7 +50,7 @@ model.compile(
     optimizer=op,
     loss='sparse_categorical_crossentropy',  
     metrics=['accuracy']  
-)
+)# compiling features 
 model.fit(X_train, y_train, epochs=15, batch_size=32, validation_split=0.2 , callbacks = [early_stopping])
 
 
@@ -65,3 +66,4 @@ predictions = np.argmax(pred , axis=1)
 
 # model.save("first_cnn_model.keras")
 # print("saved success")
+
