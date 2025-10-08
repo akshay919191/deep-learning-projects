@@ -1,0 +1,73 @@
+import pandas as pd 
+from tensorflow.keras import layers , models
+import tensorflow as tf
+
+latent_dim = 100
+img_size = 64
+chnnel = 3
+learn_rate_g = 2e-4
+learn_rate_d = 2e-4
+batch_size = 128
+
+def build_discriminator():
+    model = tf.keras.Sequential()
+
+    model.add(layers.InputLayer(shape = (img_size , img_size , chnnel)))
+
+    model.add(layers.Conv2D(64 , (5 , 5) , strides = (2 , 2) , padding = 'same'))
+    model.add(layers.LeakyReLU(negative_slope=0.2))
+    model.add(layers.Dropout(0.3))
+
+    model.add(layers.Conv2D(128 , (5 , 5) , strides = (2 , 2) , padding = 'same'))
+    model.add(layers.LeakyReLU(negative_slope=0.2))
+    model.add(layers.Dropout(0.3))
+
+    model.add(layers.Flatten())
+
+    model.add(layers.Dense(1 , activation = 'sigmoid'))
+
+    return model
+
+discriminator = build_discriminator()
+discriminator.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=learn_rate_d, beta_1=0.5),
+    loss=tf.keras.losses.BinaryCrossentropy(),
+    metrics=['accuracy']
+)
+
+
+def build_generator():
+    model = tf.keras.Sequential()
+
+    model.add(layers.Dense(4 * 4 * 256 , shape = (latent_dim)))
+    model.add(layers.BatchNormalization())
+    model.add(layers.LeakyReLU())
+    model.add(layers.reshape(4 , 4 , 256))
+
+    model.add(layers.Conv2DTranspose(128 , (5 , 5) , strides = (2 , 2) , padding = 'same'))
+    model.add(layers.BatchNormalization())
+    model.add(layers.LeakyReLU())
+
+    model.add(layers.Conv2DTranspose(64 , (5 , 5) , strides = (2 , 2) , padding = 'same'))
+    model.add(layers.BatchNormalization())
+    model.add(layers.LeakyReLU())
+
+    model.add(layers.Conv2DTranspose(32 , (5 , 5) , strides = (2 , 2) , padding = 'same'))
+    model.add(layers.BatchNormalization())
+    model.add(layers.LeakyReLU())
+
+    model.add(layers.Conv2DTranspose(chnnel , (5 , 5) , strides = (2 , 2) , padding = 'same'))
+
+    return model
+
+
+generator = build_generator()
+
+
+discriminator.trainable = False
+gan_model = models.Sequential([generator , discriminator])
+
+gan_model.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=learn_rate_g, beta_1=0.5),
+    loss=tf.keras.losses.BinaryCrossentropy()
+)
