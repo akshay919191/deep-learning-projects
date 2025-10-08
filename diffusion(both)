@@ -1,0 +1,68 @@
+import tensorflow as tf
+import math
+import pandas as pd
+
+
+def reverse_diffusion(noise_pred , alpha_cumprod , T , image_shape = (64 , 64 , 3)):
+
+    #noise pred so that it can pred the real ,,,,,, T is a noise idea
+    xt = tf.random.normal(shape=(1 , ) + image_shape)
+
+    #xt_shpae is the input for u net
+
+    betas = 1 - (alpha_cumprod / tf.roll(alpha_cumprod , shift=1 , axis=0))
+    #beta is variance for noise which is being added
+    alphas = 1 - betas
+    #alphas can be interpretated as amount of signal for previous
+
+    for t in tf.range(T , 0 , delta = -1):
+        t_tensor = tf.constant([t] , dtype=tf.int32)
+
+        elipson_theta = noise_pred(xt , t_tensor)#its the all intelligence learned
+
+
+        # 0 th index but we want n th index but its 0th index
+        alphat = alphas[t - 1]
+        alpha_bart = alpha_cumprod[t - 1]
+        betat = betas[t - 1]
+
+        #betas is varinace so sq make is st variation
+        simgat = tf.sqrt(betat)
+
+        coef_xt = 1.0 / tf.sqrt(alphat)
+        coeff_noise = (betat / tf.sqrt(1.0 - alpha_bart))
+        
+        # this is a formula
+        mu_t = coef_xt * (xt - coeff_noise * elipson_theta)
+        if t > 1:
+
+            z = tf.random.normal(shape=tf.shape(x_t))
+            x_t_minus_1 = mu_t + simgat * z
+        else:
+
+            x_t_minus_1 = mu_t
+            
+        x_t = x_t_minus_1
+
+    return x_t 
+
+
+import tensorflow as tf
+import numpy as np
+
+# Assume alphas_cumprod is an array/tensor of the pre-calculated alpha_bars (size T)
+
+def forward_sample_for_training(x_0, t, alphas_cumprod):
+    alpha_bar_t = alphas_cumprod[t - 1] 
+    
+  
+    alpha_bar_t = tf.expand_dims(alpha_bar_t, axis=-1)
+
+   
+    epsilon = tf.random.normal(shape=tf.shape(x_0))
+    sqrt_alpha_bar_t = tf.sqrt(alpha_bar_t)# coeff for image
+    sqrt_one_minus_alpha_bar_t = tf.sqrt(1.0 - alpha_bar_t) # Coefficient for the noise
+    x_t = sqrt_alpha_bar_t * x_0 + sqrt_one_minus_alpha_bar_t * epsilon# Calculate the noisy image (x_t)
+    
+ 
+    return x_t, epsilon
