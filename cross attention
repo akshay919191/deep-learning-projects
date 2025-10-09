@@ -9,7 +9,7 @@ def cross_attention(visual_feature , num_head , text_embedd , key_dim):
 
     attn_output = layers.MultiHeadAttention(num_heads = num_head , 
                                             key_dim = key_dim,
-                                            Dropout = 0.1)(query = norm_visual , key = text_embedd , value = text_embedd)
+                                            dropout = 0.1)(query = norm_visual , key = text_embedd , value = text_embedd)
     
     x = layers.Add()([visual_feature , attn_output])
 
@@ -20,4 +20,5 @@ def cross_attention(visual_feature , num_head , text_embedd , key_dim):
     output = layers.Add([x , ffn_output])
 
     return output
+
 
